@@ -9,7 +9,7 @@ from datetime import date
 
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
-df = pd.read_csv('/Users/tedmonds/Documents/NBA6450/Data/vwret.csv')
+df = pd.read_csv('Data/vwret.csv')
 
 df.ix[0, 'price'] = 1 + df.ix[0, 'vwretx']
 df.ix[0, 'div'] = df.ix[0,'vwretd'] - df.ix[0,'vwretx']
@@ -31,7 +31,7 @@ for i in range(0,len(df)):
 #print(df)
 
 #Part B
-df2 = pd.read_csv('/Users/tedmonds/Documents/NBA6450/Data/ie_data.csv')
+df2 = pd.read_csv('Data/ie_data.csv')
 df2['log_CAPE'] = np.log(df2['CAPE'])
 print(len(df2))
 
@@ -74,7 +74,7 @@ def get_data(ticker, fromdate, todate):
     timeSeries = DataReader(ticker,  "fred", fromdate, todate)
     return timeSeries
 
-location = "/Users/tedmonds/Documents/NBA6450/Data/FF.csv"
+location = "Data/FF.csv"
 ff = pd.read_csv(location,index_col =0,parse_dates=True)
 
 
@@ -113,12 +113,12 @@ results = model.fit(1)
 print ("term spread half life = ",np.log(0.5)/np.log(results.params[1]))
 #==============================================================================
 
-location = "/Users/tedmonds/Documents/NBA6450/Data/icc.csv"
+location = "Data/icc.csv"
 icc = pd.read_csv(location,index_col =0)
 
 icc_append=348*['NaN']
 for i in icc['icc'].values:
-    l.append(i)
+    icc_append.append(i)
 df['icc']=icc_append
 
 #==============================================================================
