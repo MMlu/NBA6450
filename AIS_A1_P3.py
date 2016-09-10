@@ -6,6 +6,7 @@ import statsmodels.tsa.api as stats
 import warnings
 from datetime import datetime
 from datetime import date
+import statsmodels.formula.api as sm
 
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
@@ -76,7 +77,7 @@ def get_data(ticker, fromdate, todate):
 
 location = "Data/FF.csv"
 ff = pd.read_csv(location,index_col =0,parse_dates=True)
-
+ff = ff[282:-6]
 
 exret = list(ff['Mkt-RF'].values + ff['RF'].values)
 
@@ -116,6 +117,7 @@ print ("term spread half life = ",np.log(0.5)/np.log(results.params[1]))
 location = "Data/icc.csv"
 icc = pd.read_csv(location,index_col =0)
 
+
 icc_append=348*['NaN']
 for i in icc['icc'].values:
     icc_append.append(i)
@@ -130,4 +132,11 @@ print ("icc half life = ",np.log(0.5)/np.log(results.params[1]))
 #==============================================================================
 
 
-
+l=324*[0]
+for i in Default_spread.values:
+    l.append(i)
+i=0  
+while i<24:
+    l.append(0)
+    i+=1
+df['default_spread'] = l
