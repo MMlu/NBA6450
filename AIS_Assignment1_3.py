@@ -16,7 +16,8 @@ exret = list(ff['Mkt-RF'].values)
 exret.remove('Mkt-RF')
 lr = [math.log(1+float(i)/100) for i in exret]
 
-6mr = rollingsum_windowed(lr,6)
-12mr = rollingsum_windowed(lr,12)
-36mr = rollingsum_windowed(lr,36)
-60mr = rollingsum_windowed(lr,60)
+mr6 = rollingsum_windowed(lr,6)
+mr12 = rollingsum_windowed(lr,12)
+mr36 = rollingsum_windowed(lr,36)
+mr60 = rollingsum_windowed(lr,60)
+

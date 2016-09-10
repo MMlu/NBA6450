@@ -29,9 +29,10 @@ dates =list(vwret.index.values)
 ploty.plot(dates[12:-1],p2d)
 ploty.show()
 
-location2 = "/Users/jones/Documents/Data/ie_data.csv"
-cape = pd.read_csv(location2,index_col =1,parse_dates=True)
-cape = list(math.log(cape.CAPE[-779:].values))
+location2 = "/Users/jones/Documents/Data/CAPE.csv"
+cape = pd.read_csv(location2,index_col =0)
+cape = list(cape.CAPE.values)
+cape = list(math.log(cape[-779:]))
 print ("Correlation P/d - CAPE :\n",math.corrcoef(p2d,cape))
 
 model = stats.AR(p2d)
