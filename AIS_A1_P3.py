@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from pandas.io.data import DataReader
+from pandas.stats.api import ols
 import matplotlib.pyplot as plt
 import statsmodels.tsa.api as stats
 import warnings
@@ -34,7 +35,7 @@ for i in range(0,len(df)):
 #Part B
 df2 = pd.read_csv('Data/ie_data.csv')
 df2['log_CAPE'] = np.log(df2['CAPE'])
-print(len(df2))
+# print(len(df2))
 
 df['log_CAPE']= df2['log_CAPE']
 
@@ -42,29 +43,29 @@ corr = np.corrcoef(df[12:]['pd_ratio'],df[12:]['log_CAPE'])
 #print(df)
 #df2.plot(y='log_CAPE')
 
-print("correlation is: " + str(corr[0,1]))
+# print("correlation is: " + str(corr[0,1]))
 
 #Part C
 auto_regress_pd = stats.AR(df[12:]['pd_ratio'].values)
 results = auto_regress_pd.fit(1)
-print(results.params)
+# print(results.params)
 
 auto_regress_cape = stats.AR(df[12:]['log_CAPE'].values)
 results2 = auto_regress_cape.fit(1)
-print(results2.params)
+# print(results2.params)
 
 half_life_pd = np.log(0.5)/np.log(results.params[1])
-print("P/D half life is: ", half_life_pd )
+# print("P/D half life is: ", half_life_pd )
 
 half_life_cape = np.log(0.5)/np.log(results2.params[1])
-print("CAPE half life is: ", half_life_cape)
+# print("CAPE half life is: ", half_life_cape)
 
 #Part D
 pd_dickey = stats.adfuller(df[12:]['pd_ratio'].values,1)[1]
-print(pd_dickey)
+# print(pd_dickey)
 
 cape_dickey = stats.adfuller(df[12:]['log_CAPE'].values,1)[1]
-print(cape_dickey)
+# print(cape_dickey)
 
 
 def rollingsum_windowed(arr,ws):
@@ -95,11 +96,11 @@ Baay = get_data("BAA",datetime(1977,1,1),datetime(2013,12,31))
 Default_spread = Baay['BAA'] - Aaay['AAA']
 
 #==============================================================================
-print("Average default spread: ", np.average(Default_spread))
-print("Stddev of default spread: ", np.std(Default_spread))
-model = stats.AR(Default_spread)
-results = model.fit(1)
-print ("default spread half life = ",np.log(0.5)/np.log(results.params[1]))
+# print("Average default spread: ", np.average(Default_spread))
+# print("Stddev of default spread: ", np.std(Default_spread))
+# model = stats.AR(Default_spread)
+# results = model.fit(1)
+# print ("default spread half life = ",np.log(0.5)/np.log(results.params[1]))
 #==============================================================================
 
 GS10 = get_data("GS10",datetime(1977,1,1),datetime(2013,12,31))
@@ -107,11 +108,11 @@ TB3MS = get_data("TB3MS",datetime(1977,1,1),datetime(2013,12,31))
 term_spread = GS10['GS10']-TB3MS['TB3MS']
 
 #==============================================================================
-print("Average term spread: ", np.average(term_spread))
-print("Stddev of term spread: ", np.std(term_spread))
-model = stats.AR(term_spread)
-results = model.fit(1)
-print ("term spread half life = ",np.log(0.5)/np.log(results.params[1]))
+# print("Average term spread: ", np.average(term_spread))
+# print("Stddev of term spread: ", np.std(term_spread))
+# model = stats.AR(term_spread)
+# results = model.fit(1)
+# print ("term spread half life = ",np.log(0.5)/np.log(results.params[1]))
 #==============================================================================
 
 location = "Data/icc.csv"
@@ -124,19 +125,33 @@ for i in icc['icc'].values:
 df['icc']=icc_append
 
 #==============================================================================
-print("Average icc: ", np.average(icc['icc']))
-print("Stddev of icc: ", np.std(icc['icc']))
-model = stats.AR(list(icc['icc'].values))
-results = model.fit(1)
-print ("icc half life = ",np.log(0.5)/np.log(results.params[1]))
+# print("Average icc: ", np.average(icc['icc']))
+# print("Stddev of icc: ", np.std(icc['icc']))
+# model = stats.AR(list(icc['icc'].values))
+# results = model.fit(1)
+# print ("icc half life = ",np.log(0.5)/np.log(results.params[1]))
 #==============================================================================
 
 
-l=324*[0]
+l=324*['NaN']
 for i in Default_spread.values:
     l.append(i)
-i=0  
+i=0
 while i<24:
-    l.append(0)
+    l.append('NaN')
     i+=1
 df['default_spread'] = l
+
+l=324*['NaN']
+for i in term_spread.values:
+    l.append(i)
+i=0
+while i<24:
+    l.append('NaN')
+    i+=1
+df['term_spread'] = l
+
+regress = ols(y=lr, x = df('default_spread'))
+print(regress)
+print('\n\n')
+print(pd.stats.ols.OLS(lr,df['default_spread'],nw_lags=1))
