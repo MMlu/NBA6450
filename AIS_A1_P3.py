@@ -11,7 +11,7 @@ import statsmodels.formula.api as sm
 
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
-df = pd.read_csv('Data/vwret.csv')
+df = pd.read_csv('/Users/tedmonds/Documents/NBA6450/Data/vwret.csv')
 
 df.ix[0, 'price'] = 1 + df.ix[0, 'vwretx']
 df.ix[0, 'div'] = df.ix[0,'vwretd'] - df.ix[0,'vwretx']
@@ -33,7 +33,7 @@ for i in range(0,len(df)):
 #print(df)
 
 #Part B
-df2 = pd.read_csv('Data/ie_data.csv')
+df2 = pd.read_csv('/Users/tedmonds/Documents/NBA6450/Data/ie_data.csv')
 df2['log_CAPE'] = np.log(df2['CAPE'])
 # print(len(df2))
 
@@ -76,7 +76,7 @@ def get_data(ticker, fromdate, todate):
     timeSeries = DataReader(ticker,  "fred", fromdate, todate)
     return timeSeries
 
-location = "Data/FF.csv"
+location = "/Users/tedmonds/Documents/NBA6450/Data/FF.csv"
 ff = pd.read_csv(location,index_col =0,parse_dates=True)
 ff = ff[282:-6]
 
@@ -84,7 +84,7 @@ exret = list(ff['Mkt-RF'].values + ff['RF'].values)
 
 lr = [np.log(1+float(i)/100) for i in exret]
 
-mr6 = rollingsum_windowed(lr,6)
+mr3 = rollingsum_windowed(lr,3)
 mr12 = rollingsum_windowed(lr,12)
 mr36 = rollingsum_windowed(lr,36)
 mr60 = rollingsum_windowed(lr,60)
@@ -115,7 +115,7 @@ term_spread = GS10['GS10']-TB3MS['TB3MS']
 # print ("term spread half life = ",np.log(0.5)/np.log(results.params[1]))
 #==============================================================================
 
-location = "Data/icc.csv"
+location = "/Users/tedmonds/Documents/NBA6450/Data/icc.csv"
 icc = pd.read_csv(location,index_col =0)
 
 
@@ -151,7 +151,24 @@ while i<24:
     i+=1
 df['term_spread'] = l
 
-regress = ols(y=lr, x = df('default_spread'))
+df['mr3']=mr3
+df['mr12'] = mr12
+df['mr36'] = mr36
+df['mr60'] = mr60
+df['lr'] = lr
+
+df['icc'] = df['icc'].replace('NaN',np.NaN)
+
+regress = ols(y=mr60, x = df['icc'])
 print(regress)
 print('\n\n')
-print(pd.stats.ols.OLS(lr,df['default_spread'],nw_lags=1))
+print(pd.stats.ols.OLS(mr60,df['icc'],nw_lags=1))
+
+df['mr3']=mr3
+df['mr12'] = mr12
+df['mr36'] = mr36
+df['mr60'] = mr60
+df['lr'] = lr
+
+lm = sm.ols(formula='lr ~ pd_ratio + icc', data=df[700:]).fit()
+lm.summary()
