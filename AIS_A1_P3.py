@@ -9,9 +9,9 @@ from datetime import datetime
 from datetime import date
 import statsmodels.formula.api as sm
 
-warnings.simplefilter(action = "ignore", category = RuntimeWarning)
+warnings.simplefilter(action = "ignore")
 
-df = pd.read_csv('/Users/tedmonds/Documents/NBA6450/Data/vwret.csv')
+df = pd.read_csv('Data/vwret.csv')
 
 df.ix[0, 'price'] = 1 + df.ix[0, 'vwretx']
 df.ix[0, 'div'] = df.ix[0,'vwretd'] - df.ix[0,'vwretx']
@@ -33,7 +33,7 @@ for i in range(0,len(df)):
 #print(df)
 
 #Part B
-df2 = pd.read_csv('/Users/tedmonds/Documents/NBA6450/Data/ie_data.csv')
+df2 = pd.read_csv('Data/ie_data.csv')
 df2['log_CAPE'] = np.log(df2['CAPE'])
 # print(len(df2))
 
@@ -76,11 +76,11 @@ def get_data(ticker, fromdate, todate):
     timeSeries = DataReader(ticker,  "fred", fromdate, todate)
     return timeSeries
 
-location = "/Users/tedmonds/Documents/NBA6450/Data/FF.csv"
+location = "Data/FF.csv"
 ff = pd.read_csv(location,index_col =0,parse_dates=True)
 ff = ff[282:-6]
 
-exret = list(ff['Mkt-RF'].values + ff['RF'].values)
+exret = list(ff['Mkt-RF'].values)
 
 lr = [np.log(1+float(i)/100) for i in exret]
 
@@ -95,59 +95,37 @@ Baay = get_data("BAA",datetime(1977,1,1),datetime(2013,12,31))
 
 Default_spread = Baay['BAA'] - Aaay['AAA']
 
-#==============================================================================
-# print("Average default spread: ", np.average(Default_spread))
-# print("Stddev of default spread: ", np.std(Default_spread))
-# model = stats.AR(Default_spread)
-# results = model.fit(1)
-# print ("default spread half life = ",np.log(0.5)/np.log(results.params[1]))
-#==============================================================================
 
+#============Getting Data==========================================
 GS10 = get_data("GS10",datetime(1977,1,1),datetime(2013,12,31))
 TB3MS = get_data("TB3MS",datetime(1977,1,1),datetime(2013,12,31))
 term_spread = GS10['GS10']-TB3MS['TB3MS']
 
-#==============================================================================
-# print("Average term spread: ", np.average(term_spread))
-# print("Stddev of term spread: ", np.std(term_spread))
-# model = stats.AR(term_spread)
-# results = model.fit(1)
-# print ("term spread half life = ",np.log(0.5)/np.log(results.params[1]))
-#==============================================================================
 
-location = "/Users/tedmonds/Documents/NBA6450/Data/icc.csv"
+location = "Data/icc.csv"
 icc = pd.read_csv(location,index_col =0)
-
-
-icc_append=348*['NaN']
+#==================================================================
+#============Data Management=======================================
+icc_append=348*[np.NaN]
 for i in icc['icc'].values:
     icc_append.append(i)
 df['icc']=icc_append
 
-#==============================================================================
-# print("Average icc: ", np.average(icc['icc']))
-# print("Stddev of icc: ", np.std(icc['icc']))
-# model = stats.AR(list(icc['icc'].values))
-# results = model.fit(1)
-# print ("icc half life = ",np.log(0.5)/np.log(results.params[1]))
-#==============================================================================
-
-
-l=324*['NaN']
+l=324*[np.NaN]
 for i in Default_spread.values:
     l.append(i)
 i=0
 while i<24:
-    l.append('NaN')
+    l.append(np.NaN)
     i+=1
 df['default_spread'] = l
 
-l=324*['NaN']
+l=324*[np.NaN]
 for i in term_spread.values:
     l.append(i)
 i=0
 while i<24:
-    l.append('NaN')
+    l.append(np.NaN)
     i+=1
 df['term_spread'] = l
 
@@ -157,18 +135,71 @@ df['mr36'] = mr36
 df['mr60'] = mr60
 df['lr'] = lr
 
-df['icc'] = df['icc'].replace('NaN',np.NaN)
+df['mr3'][0:3]=np.NaN
+df['mr12'][0:12]=np.NaN
+df['mr36'][0:36]=np.NaN
+df['mr60'][0:60]=np.NaN
 
-regress = ols(y=mr60, x = df['icc'])
-print(regress)
-print('\n\n')
-print(pd.stats.ols.OLS(mr60,df['icc'],nw_lags=1))
+df['lr']=df['lr'].shift(1)
+#==================================================================
 
-df['mr3']=mr3
-df['mr12'] = mr12
-df['mr36'] = mr36
-df['mr60'] = mr60
-df['lr'] = lr
 
-lm = sm.ols(formula='lr ~ pd_ratio + icc', data=df[700:]).fit()
-lm.summary()
+
+#==============================================================================
+# print("Average default spread: ", np.average(Default_spread))
+# print("Stddev of default spread: ", np.std(Default_spread))
+# model = stats.AR(Default_spread)
+# results = model.fit(1)
+# print ("default spread half life = ",np.log(0.5)/np.log(results.params[1]))
+#==============================================================================
+
+
+#==============================================================================
+# print("Average term spread: ", np.average(term_spread))
+# print("Stddev of term spread: ", np.std(term_spread))
+# model = stats.AR(term_spread)
+# results = model.fit(1)
+# print ("term spread half life = ",np.log(0.5)/np.log(results.params[1]))
+#==============================================================================
+
+
+
+#==============================================================================
+# print("Average icc: ", np.average(icc['icc']))
+# print("Stddev of icc: ", np.std(icc['icc']))
+# model = stats.AR(list(icc['icc'].values))
+# results = model.fit(1)
+# print ("icc half life = ",np.log(0.5)/np.log(results.params[1]))
+#==============================================================================
+
+#===========Regression Function========================
+def get_params(df,names,lag,return_period):
+    d = {}
+    df1 = pd.DataFrame(d)
+    df1['name']=names
+    df1['coef'] = [0.0,0.0,0.0,0.0,0.0]
+    df1['tstat'] = [0.0,0.0,0.0,0.0,0.0]
+    df1['rsquared'] = [0.0,0.0,0.0,0.0,0.0]
+    j=0
+    for i in names:
+        f = '' + return_period + ' ~ ' + i 
+        lm = sm.ols(formula=f, data=df[324:768]).fit(cov_type='HAC',cov_kwds={'maxlags':lag})
+    
+        df1['coef'][j] = lm.params[1]
+        df1['rsquared'][j] =lm.rsquared_adj
+        df1['tstat'][j] = lm.tvalues[1]
+        j+=1
+    return df1
+#=======================================================
+#=============Old Regression============================
+#df=df[324:]
+#regress = ols(y=df['mr3'], x = df[i])
+#print(regress)
+#print('\n\n')
+#print(pd.stats.ols.OLS(df['lr'],df['pd_ratio'],))
+#=======================================================
+
+
+
+names = ['pd_ratio','log_CAPE','default_spread','term_spread','icc']
+get_params(df,names,2,'mr3')
