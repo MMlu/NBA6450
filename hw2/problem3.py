@@ -14,4 +14,8 @@ def get_data(ticker, fromdate, todate):
     return timeSeries
 
 
-Aaay = get_data("AAA",datetime(1977,1,1),datetime(2013,12,31))
+ff = pd.read_csv("Data/FF.csv",index_col =0,parse_dates=True)
+exret = list(ff['Mkt-RF'].values)
+smb = list(ff['SMB'].values)
+hml = list(ff['HML'].values)
+rf = list(ff['RF'].values)
