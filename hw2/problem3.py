@@ -20,14 +20,16 @@ def get_params(df, names, lag, return_period):
     df1['coef'] = [0.0, 0.0, 0.0]
     df1['tstat'] = [0.0, 0.0, 0.0]
     df1['rsquared'] = [0.0, 0.0, 0.0]
+    df1['a'] = [0.0, 0.0, 0.0]
     j = 0
     for i in names:
-        f = '' + return_period + ' ~ ' + i
+        f = '' + return_period + ' ~ ' + i + ' + '
         lm = sm.ols(formula=f, data=df).fit(cov_type='HAC',cov_kwds={'maxlags':lag})
 
         df1['coef'][j] = lm.params[1]
         df1['rsquared'][j] = lm.rsquared_adj
         df1['tstat'][j] = lm.tvalues[1]
+        df1['a'][j] = lm.params[0]
         j += 1
     return df1
 
@@ -43,7 +45,7 @@ lsc = lsc.reset_index()
 df = pd.concat([ff, lsc], 'i')
 df = df.rename(columns={'Mkt-RF': 'Mkt'})
 
-
-
-print get_params(df, ['Mkt', 'SMB', 'HML'], 0, 'ret')
+f = ' ret ~ Mkt + SMB + HML'
+lm = sm.ols(formula=f, data=df).fit(cov_type='HAC', cov_kwds={'maxlags': 0})
+print lm.params
 
