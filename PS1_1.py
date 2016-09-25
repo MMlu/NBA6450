@@ -2,7 +2,8 @@ import warnings
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
 import pandas as parray
-import numpy as math
+import numpy as np
+import scipy.stats as sp
 from pandas.stats.api import ols
 from pandas.io.data import DataReader
 import statsmodels.formula.api as sm
@@ -18,13 +19,13 @@ def get_data(ticker, fromdate, todate):
     timeSeries = DataReader(ticker,  'yahoo', fromdate, todate)
     return timeSeries
 
-series_spx = get_data('^GSPC',datetime(1990,01,02),datetime(2015,12,31))
-series_vix = get_data('^VIX',datetime(1990,01,02),datetime(2015,12,31))
-returns_spx = math.log(series_spx['Adj Close'].shift(1)/series_spx['Adj Close'])
-returns_vix = math.log(series_vix['Adj Close'].shift(1)/series_vix['Adj Close'])
+series_spx = get_data('^GSPC',datetime(1990,1,2),datetime(2015,12,31))
+series_vix = get_data('^VIX',datetime(1990,1,2),datetime(2015,12,31))
+returns_spx = np.log(series_spx['Adj Close'].shift(-1)/series_spx['Adj Close'])
+returns_vix = np.log(series_vix['Adj Close'].shift(-1)/series_vix['Adj Close'])
 returns = parray.concat([returns_spx, returns_vix], axis=1)
 returns.columns = ['lr_spx','lr_vix']
-print returns
+print (returns.head())
 
 returns.plot(kind = 'scatter',x = 'lr_vix',y='lr_spx')
 
