@@ -13,26 +13,6 @@ def get_data(ticker, fromdate, todate):
     timeSeries = DataReader(ticker,  "fred", fromdate, todate)
     return timeSeries
 
-def get_params(df, names, lag, return_period):
-    d = {}
-    df1 = pd.DataFrame(d)
-    df1['name'] = names
-    df1['coef'] = [0.0, 0.0, 0.0]
-    df1['tstat'] = [0.0, 0.0, 0.0]
-    df1['rsquared'] = [0.0, 0.0, 0.0]
-    df1['a'] = [0.0, 0.0, 0.0]
-    j = 0
-    for i in names:
-        f = '' + return_period + ' ~ ' + i + ' + '
-        lm = sm.ols(formula=f, data=df).fit(cov_type='HAC',cov_kwds={'maxlags':lag})
-
-        df1['coef'][j] = lm.params[1]
-        df1['rsquared'][j] = lm.rsquared_adj
-        df1['tstat'][j] = lm.tvalues[1]
-        df1['a'][j] = lm.params[0]
-        j += 1
-    return df1
-
 
 ff = pd.read_csv("../Data/FF.csv",index_col =0,parse_dates=True)
 lsc = pd.read_csv('../Data/small_value_ret.csv',index_col =0,parse_dates=True)
