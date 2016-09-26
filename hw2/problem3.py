@@ -38,7 +38,8 @@ lm = sm.ols(formula=f, data=df).fit(cov_type='HAC', cov_kwds={'maxlags': 0})
 print lm.params
 
 expectedReturn = lm.params[1] * yearAvg['MktRF'].mean()
-print expectedReturn, '\n'
+print expectedReturn
+print
 
 # B
 f = ' ret ~ MktRF + SMB + HML'
@@ -50,19 +51,20 @@ expectedReturn = lm.params[1] * yearAvg['MktRF'].mean() \
                     + lm.params[3] * yearAvg['HML'].mean()
 
 print expectedReturn
+print
 
 # C
 df['MktRFMA'] = movingAverage(df['MktRF'], 12)
 df['SMBMA'] = movingAverage(df['SMB'], 12)
 df['HMLMA'] = movingAverage(df['HML'], 12)
-
+yearAvg = df.groupby(['year']).sum()
 
 f = ' ret ~ MktRFMA + SMBMA + HMLMA'
 lm = sm.ols(formula=f, data=df).fit(cov_type='HAC', cov_kwds={'maxlags': 0})
 print lm.params
 
-# expectedReturn = lm.params[1] * yearAvg['MktRFMA'].mean() \
-#                     + lm.params[2] * yearAvg['SMBMA'].mean() \
-#                     + lm.params[3] * yearAvg['HMLMA'].mean()
-#
-# print expectedReturn
+expectedReturn = lm.params[1] * yearAvg['MktRFMA'].mean() \
+                    + lm.params[2] * yearAvg['SMBMA'].mean() \
+                    + lm.params[3] * yearAvg['HMLMA'].mean()
+
+print expectedReturn
