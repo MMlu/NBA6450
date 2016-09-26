@@ -32,8 +32,6 @@ yearAvg = df.groupby(['year']).sum()
 
 df['retRF'] = df['ret'] - df['RF']
 
-print df
-
 # A
 f = ' ret ~ MktRF'
 lm = sm.ols(formula=f, data=df).fit(cov_type='HAC', cov_kwds={'maxlags': 0})
@@ -54,4 +52,17 @@ expectedReturn = lm.params[1] * yearAvg['MktRF'].mean() \
 print expectedReturn
 
 # C
-print movingAverage(df['MktRF'], 12)
+df['MktRFMA'] = movingAverage(df['MktRF'], 12)
+df['SMBMA'] = movingAverage(df['SMB'], 12)
+df['HMLMA'] = movingAverage(df['HML'], 12)
+
+
+f = ' ret ~ MktRFMA + SMBMA + HMLMA'
+lm = sm.ols(formula=f, data=df).fit(cov_type='HAC', cov_kwds={'maxlags': 0})
+print lm.params
+
+# expectedReturn = lm.params[1] * yearAvg['MktRFMA'].mean() \
+#                     + lm.params[2] * yearAvg['SMBMA'].mean() \
+#                     + lm.params[3] * yearAvg['HMLMA'].mean()
+#
+# print expectedReturn
