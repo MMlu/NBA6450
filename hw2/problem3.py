@@ -17,6 +17,8 @@ def movingAverage(interval, window_size):
     window = np.ones(int(window_size))/float(window_size)
     return np.convolve(interval, window, 'same')
 
+def monthlyAToAnnualA(monthlyA):
+    return ((1+monthlyA)**12) - 1
 
 ff = pd.read_csv("../Data/FF.csv",index_col =0,parse_dates=True)
 lsc = pd.read_csv('../Data/small_value_ret.csv',index_col =0,parse_dates=True)
@@ -28,30 +30,28 @@ lsc = lsc.reset_index()
 
 df = pd.concat([ff, lsc], 'i')
 df = df.rename(columns={'Mkt-RF': 'MktRF'})
+
+df['ret'] = df['ret'] * 100
+df['ret_rf'] = df['ret'] - df['RF']
 yearAvg = df.groupby(['year']).sum()
 
-df['retRF'] = df['ret'] - df['RF']
-
 # A
-f = ' ret ~ MktRF'
+f = ' ret_rf ~ MktRF'
 lm = sm.ols(formula=f, data=df).fit()
 print lm.summary()
-print lm.params
 
 expectedReturn = lm.params[1] * yearAvg['MktRF'].mean()
 print expectedReturn
 print
 
 # B
-f = ' ret ~ MktRF + SMB + HML'
+f = ' ret_rf ~ MktRF + SMB + HML'
 lm = sm.ols(formula=f, data=df).fit()
 print lm.summary()
-print lm.params
 
 expectedReturn = lm.params[1] * yearAvg['MktRF'].mean() \
                     + lm.params[2] * yearAvg['SMB'].mean() \
                     + lm.params[3] * yearAvg['HML'].mean()
-
 print expectedReturn
 print
 
@@ -61,13 +61,13 @@ df['SMBMA'] = movingAverage(df['SMB'], 12)
 df['HMLMA'] = movingAverage(df['HML'], 12)
 yearAvg = df.groupby(['year']).sum()
 
-f = ' ret ~ MktRFMA + SMBMA + HMLMA'
+df = df.ix[11:]
+
+f = ' ret_rf ~ MktRFMA + SMBMA + HMLMA'
 lm = sm.ols(formula=f, data=df).fit()
 print lm.summary()
-print lm.params
 
 expectedReturn = lm.params[1] * yearAvg['MktRFMA'].mean() \
                     + lm.params[2] * yearAvg['SMBMA'].mean() \
                     + lm.params[3] * yearAvg['HMLMA'].mean()
-
 print expectedReturn
