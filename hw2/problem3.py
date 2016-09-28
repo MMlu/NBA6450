@@ -49,9 +49,9 @@ f = ' ret_rf ~ MktRF + SMB + HML'
 lm = sm.ols(formula=f, data=df).fit()
 print lm.summary()
 
-expectedReturn = lm.params[1] * yearAvg['MktRF'].mean() \
-                    + lm.params[2] * yearAvg['SMB'].mean() \
-                    + lm.params[3] * yearAvg['HML'].mean()
+expectedReturn = lm.params[1] * df['MktRF'].mean() \
+                    + lm.params[2] * df['SMB'].mean() \
+                    + lm.params[3] * df['HML'].mean()
 print expectedReturn
 print
 
@@ -67,7 +67,7 @@ f = ' ret_rf ~ MktRFMA + SMBMA + HMLMA'
 lm = sm.ols(formula=f, data=df).fit()
 print lm.summary()
 
-expectedReturn = lm.params[1] * yearAvg['MktRFMA'].mean() \
-                    + lm.params[2] * yearAvg['SMBMA'].mean() \
-                    + lm.params[3] * yearAvg['HMLMA'].mean()
+expectedReturn = lm.params[1] * df['MktRFMA'].mean() \
+                    + lm.params[2] * df['SMBMA'].mean() \
+                    + lm.params[3] * df['HMLMA'].mean()
 print expectedReturn
