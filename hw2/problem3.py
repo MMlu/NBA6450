@@ -61,6 +61,9 @@ df['SMBMA'] = movingAverage(df['SMB'], 12)
 df['HMLMA'] = movingAverage(df['HML'], 12)
 yearAvg = df.groupby(['year']).sum()
 
+
+
+ddf = df
 df = df.ix[11:]
 
 f = ' ret_rf ~ MktRFMA + SMBMA + HMLMA'
@@ -71,3 +74,4 @@ expectedReturn = lm.params[1] * df['MktRFMA'].mean() \
                     + lm.params[2] * df['SMBMA'].mean() \
                     + lm.params[3] * df['HMLMA'].mean()
 print expectedReturn
+print np.average(df['RF'])
