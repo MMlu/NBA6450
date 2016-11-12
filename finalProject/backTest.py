@@ -1,3 +1,6 @@
+# Bryan Lu
+# For NBA6450 Final Project
+
 import pandas as pd
 import numpy as np
 from pandas.io.data import DataReader
