@@ -42,7 +42,7 @@ current = {
     'coveredTime' : 100000000,
     'capacity' : CONST.MAX_CAPACITY,
     'futures' : [],
-    'nextMaturity' : np.datetime64('1995-01-24'),
+    'nextMaturity' : np.datetime64('1995-01-27'),
     'profit' : 0,
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
 }
@@ -99,16 +99,18 @@ def maturityCalculation(date,data):
 
 def updateNextMaturityDate():
     one_day = np.timedelta64(1, 'D')
-    curDay = current['nextMaturity'].astype(object).day
+    curMonth = current['nextMaturity'].astype(object).month
     curYear = current['nextMaturity'].astype(object).year
     current['nextMaturity'] += one_day
-    while current['nextMaturity'].astype(object).day != curDay:
+    while (current['nextMaturity'].astype(object).month % 12) != ((curMonth + 2) % 12) \
+            or not np.is_busday(current['nextMaturity']):
         current['nextMaturity'] += one_day
 
-    if current['nextMaturity'].astype(object).year > curYear:
-        current['nextMaturity'] += one_day
-        while current['nextMaturity'].astype(object).day > 29:
-            current['nextMaturity'] += one_day
+    offSetDays = 3
+    while offSetDays > 0:
+        current['nextMaturity'] -= one_day
+        if np.is_busday(current['nextMaturity']):
+            offSetDays -= 1
 
 def updateLibor(data):
     try:
