@@ -28,10 +28,13 @@ def constant(f):
 class _Const(object):
     @constant
     def STORAGE_COST(self):
-        return 0
+        return 0.0017
     @constant
     def MAX_CAPACITY(self):
-        return 1
+        return 3300000
+    @constant
+    def SHIP_COST(self):
+        return 0.02
 
 CONST = _Const()
 
@@ -51,25 +54,28 @@ profit = []
 def hedgeStrat(date,data):
     if current['coveredTime'] <= 0:
         for i in range(9, 0, -1):
-            if checkContangoBackwardation(date, data, "future" + `i`):
+            if checkContangoBackwardation(date, data, i):
                 current['coveredTime'] = i
                 print "hedgeStratA", current['coveredTime']
                 break
-    if not checkContangoBackwardation(date, data, 'future1'): #backwardation
+    if not checkContangoBackwardation(date, data, 1): #backwardation
         if current['capacity'] < CONST.MAX_CAPACITY: # have some holdings
-            pass
+            current['futures'].append(Futures(1, data['future1'], (CONST.MAX_CAPACITY - current['capacity']), True))
+            current['profit'] += (CONST.MAX_CAPACITY - current['capacity']) * (data['spot'] - CONST.SHIP_COST)
+            current['capacity'] = CONST.MAX_CAPACITY
 
 
 def gambleStrat(date,data):
-    if current['capacity'] > 0 and checkContangoBackwardation(date,data,"future1"):
+    if current['capacity'] > 0 and checkContangoBackwardation(date,data, 1):
         current['futures'].append(Futures(1, data['future1'], current['capacity'], False))
         current['profit'] -= current['capacity'] * data['spot']
         current['capacity'] = 0
 
 
 # True if Contango, False if Backwardation
-def checkContangoBackwardation(date,data,tick):
-    return (data[tick] / (1 + (current['LIBOR']/12)) > data['spot'])
+def checkContangoBackwardation(date,data,period):
+    return (data["future" + `period`] / (1 + (current['LIBOR']/period))
+            > (data['spot']) + CONST.SHIP_COST + CONST.STORAGE_COST * 30 * period)
 
 def markToMarket(date,data):
     for f in current['futures']:
@@ -92,7 +98,7 @@ def maturityCalculation(date,data):
                     current['profit'] -= (f.size * f.price)
                     current['capacity'] -= f.size
                 else:
-                    current['profit'] += (f.size * f.price)
+                    current['profit'] += (f.size * (f.price - CONST.SHIP_COST ))
                     current['capacity'] += f.size
             else:
                 current['futures'][i].monthTillMaturity -= 1
@@ -122,15 +128,18 @@ def updateLibor(data):
 for date, data in DATA.iterrows():
     #Process Data
     updateLibor(data)
-    current['profit'] = current['profit'] * (1 + (current['LIBOR'] / 365))
     maturityCalculation(date, data)
     markToMarket(date, data)
 
-    #Running Strategy
-    hedgeStrat(date, data)
-    gambleStrat(date, data)
+    if date >= np.datetime64('2010-01-01') and date <= np.datetime64('2016-01-01'):
+        current['profit'] *= (1 + (current['LIBOR'] / 365))
+        current['profit'] -= CONST.STORAGE_COST * (CONST.MAX_CAPACITY - current['capacity'])
 
-    profit.append(current['profit'])
+        #Running Strategy
+        hedgeStrat(date, data)
+        gambleStrat(date, data)
+
+        profit.append(current['profit'])
 
 
 plt.plot(profit)
