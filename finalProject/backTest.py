@@ -31,7 +31,7 @@ def constant(f):
 class _Const(object):
     @constant
     def STORAGE_COST(self):
-        return 0.00166667
+        return 3000
     @constant
     def MAX_CAPACITY(self):
         return 3300000
@@ -52,6 +52,7 @@ current = {
     'profit' : 0,
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
     'numTrades' : 0,
+    'countFlip' : 0,
 }
 profit = []
 netPosition = []
@@ -65,24 +66,26 @@ def tradeFuction(data, longShort, period, amount): # longShort = 1 or -1, -1 for
     current['numTrades'] += 1
 
 def hedgeStrat(date,data):
-    if current['coveredTime'] <= 0:
-        tempMax = 0
-        tempMaxIndex = 0
-        for i in range(9, 0, -1):
-            temp = (data["future" + `i`] / 1 + current['LIBOR']/i)
-            if temp > tempMax:
-                tempMax = temp
-                tempMaxIndex =  i
-        if checkContango(date, data, tempMaxIndex):
-            current['coveredTime'] = tempMaxIndex
-            hedgeCapacity = min(current['capacity'], i * 30 * CONST.STORAGE_COST * CONST.MAX_CAPACITY \
-                / (data["future" + `tempMaxIndex`] / (1 + (current['LIBOR'] / tempMaxIndex)) - (data['spot']) - CONST.SHIP_COST))
-            hedgeCapacity = 0
-            tradeFuction(data, -1, i, math.ceil(hedgeCapacity))
-
-    if current['coveredTime'] >= 1 and checkBackwardation(date, data, 1): #backwardation
+    if checkBackwardation(date, data, 1):
         if current['capacity'] < CONST.MAX_CAPACITY: # have some holdings
+            current['countFlip'] += 1
             tradeFuction(data, 1, 1, (CONST.MAX_CAPACITY - current['capacity']))
+    # if current['coveredTime'] <= 0:
+    #     tempMax = 0
+    #     tempMaxIndex = 0
+    #     for i in range(9, 0, -1):
+    #         temp = (data["future" + `i`] / 1 + current['LIBOR']/i)
+    #         if temp > tempMax:
+    #             tempMax = temp
+    #             tempMaxIndex =  i
+    #     if checkContango(date, data, tempMaxIndex):
+    #         current['coveredTime'] = tempMaxIndex
+    #         hedgeCapacity = min(current['capacity'], i * 30 * CONST.STORAGE_COST * CONST.MAX_CAPACITY \
+    #             / (data["future" + `tempMaxIndex`] / (1 + (current['LIBOR'] / tempMaxIndex)) - (data['spot']) - CONST.SHIP_COST))
+    #         #hedgeCapacity = 0
+    #         tradeFuction(data, -1, i, math.ceil(hedgeCapacity))
+    #
+    # if current['coveredTime'] >= 1 and checkBackwardation(date, data, 1): #backwardation
 
 def gambleStrat(date,data):
     if current['capacity'] > 0 and checkContango(date,data, 1):
@@ -99,9 +102,9 @@ def markToMarket(date,data):
     for f in current['futures']:
         dPrice = data["future" + `f.monthTillMaturity`]
         if f.longShort:
-            current['profit'] += (dPrice - f.price)
+            current['profit'] += (dPrice - f.price) * f.size
         else:
-            current['profit'] += (f.price - dPrice)
+            current['profit'] += (f.price - dPrice) * f.size
         f.price = dPrice
 
 def maturityCalculation(date,data):
@@ -143,24 +146,25 @@ def updateLibor(data):
         pass
 
 pltX = []
+CAPACITY = []
 # Main
 for date, data in DATA.iterrows():
     #Process Data
     updateLibor(data)
     maturityCalculation(date, data)
+    current['profit'] *= (1 + current['LIBOR'] / 365)  # math.exp((math.log(1 + current['LIBOR'], math.e))/365)
     markToMarket(date, data)
 
-    if date >= np.datetime64('2010-01-01') and date <= np.datetime64('2016-01-01'):
-        pltX.append(date)
-        current['profit'] *= (1 + current['LIBOR']/365) # math.exp((math.log(1 + current['LIBOR'], math.e))/365)
-        current['profit'] -= CONST.STORAGE_COST * (CONST.MAX_CAPACITY)
-
+    if date >= np.datetime64('2011-01-01') and date <= np.datetime64('2016-01-01'):
+        current['profit'] -= CONST.STORAGE_COST
         #Running Strategy
         hedgeStrat(date, data)
         gambleStrat(date, data)
 
-        profit.append(current['profit'])
-        netPosition.append(current['profit'] + (CONST.MAX_CAPACITY - current['capacity']) * data['spot'])
+    pltX.append(date)
+    profit.append(current['profit'])
+    netPosition.append(current['profit'] + (CONST.MAX_CAPACITY - current['capacity']) * data['spot'])
+    CAPACITY.append(CONST.MAX_CAPACITY - current['capacity'])
 
 curyear = pltX[0].year
 yearly = []
@@ -173,9 +177,9 @@ for i in range(1,len(pltX)):
         temp = 0
     temp += profit[i] - profit[i-1]
 
-plt.plot(profit)
+plt.plot(pltX, netPosition)
 print current
 for p in current['futures']: p.printFutures()
-print profit[-1] / 1000000, "million"
+print current['profit'] / 1000000, "million"
 
 plt.show()
