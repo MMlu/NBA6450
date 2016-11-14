@@ -17,6 +17,8 @@ class Futures:
         self.price = price
         self.size = size
         self.longShort = longShort
+    def printFutures(self):
+        print 'mtm:', self.monthTillMaturity, ',price:', self.price, ',size:', self.size, ',longShort:', self.longShort
 
 # CONSTANT Parameters
 def constant(f):
@@ -29,7 +31,7 @@ def constant(f):
 class _Const(object):
     @constant
     def STORAGE_COST(self):
-        return 0.0017
+        return 0.00166667
     @constant
     def MAX_CAPACITY(self):
         return 3300000
@@ -49,34 +51,49 @@ current = {
     'nextMaturity' : np.datetime64('1995-01-27'),
     'profit' : 0,
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
+    'numTrades' : 0,
 }
 profit = []
 netPosition = []
 
-def tradeFuction(longShort, period, amount): # longShort = 1 or -1, -1 for short future long spot, 1 reverse trade
+def tradeFuction(data, longShort, period, amount): # longShort = 1 or -1, -1 for short future long spot, 1 reverse trade
     current['futures'].append(Futures(period, data['future' + `period`], amount, longShort==1))
     current['profit'] = current['profit'] + longShort * amount * data['spot']
     current['capacity'] = current['capacity'] + longShort * amount
+    if not longShort == 1:
+        current['profit'] -= CONST.SHIP_COST * amount
+    current['numTrades'] += 1
 
 def hedgeStrat(date,data):
     if current['coveredTime'] <= 0:
+        tempMax = 0
+        tempMaxIndex = 0
         for i in range(9, 0, -1):
-            if checkContangoBackwardation(date, data, i):
-                hedgeCapacity = min(current['capacity'], i * 30 * CONST.STORAGE_COST \
-                    / (data["future" + `i`] / (1 + (current['LIBOR'] / i)) - (data['spot']) - CONST.SHIP_COST))
-                tradeFuction(-1, i, hedgeCapacity)
-                break
-    if not checkContangoBackwardation(date, data, 1): #backwardation
+            temp = (data["future" + `i`] / 1 + current['LIBOR']/i)
+            if temp > tempMax:
+                tempMax = temp
+                tempMaxIndex =  i
+        if checkContango(date, data, tempMaxIndex):
+            current['coveredTime'] = tempMaxIndex
+            hedgeCapacity = min(current['capacity'], i * 30 * CONST.STORAGE_COST * CONST.MAX_CAPACITY \
+                / (data["future" + `tempMaxIndex`] / (1 + (current['LIBOR'] / tempMaxIndex)) - (data['spot']) - CONST.SHIP_COST))
+            hedgeCapacity = 0
+            tradeFuction(data, -1, i, math.ceil(hedgeCapacity))
+
+    if current['coveredTime'] >= 1 and checkBackwardation(date, data, 1): #backwardation
         if current['capacity'] < CONST.MAX_CAPACITY: # have some holdings
-            tradeFuction(1, 1, (CONST.MAX_CAPACITY - current['capacity']))
+            tradeFuction(data, 1, 1, (CONST.MAX_CAPACITY - current['capacity']))
 
 def gambleStrat(date,data):
-    if current['capacity'] > 0 and checkContangoBackwardation(date,data, 1):
-        tradeFuction(-1, 1, current['capacity'])
+    if current['capacity'] > 0 and checkContango(date,data, 1):
+        tradeFuction(data, -1, 1, current['capacity'])
 
-# True if Contango, False if Backwardation
-def checkContangoBackwardation(date,data,period):
-    return (data["future" + `period`] / (1 + (current['LIBOR']/period)) > (data['spot']) + CONST.SHIP_COST)
+# True if Contango
+def checkContango(date,data,period):
+    return (data["future" + `period`] / (1 + (current['LIBOR'] * period / 12)) > (data['spot']) + CONST.SHIP_COST)
+
+def checkBackwardation(date,data,period):
+    return (data["future" + `period`] / (1 + (current['LIBOR'] * period / 12)) < (data['spot']) - CONST.SHIP_COST)
 
 def markToMarket(date,data):
     for f in current['futures']:
@@ -93,7 +110,7 @@ def maturityCalculation(date,data):
         updateNextMaturityDate()
 
         for i in range(len(current['futures']) - 1, -1, -1):
-            if current['futures'][i].monthTillMaturity == 1:
+            if current['futures'][i].monthTillMaturity <= 1:
                 f = current['futures'].pop(i)
                 if f.longShort:
                     current['profit'] -= (f.size * f.price)
@@ -125,6 +142,7 @@ def updateLibor(data):
     except Exception:
         pass
 
+pltX = []
 # Main
 for date, data in DATA.iterrows():
     #Process Data
@@ -132,21 +150,32 @@ for date, data in DATA.iterrows():
     maturityCalculation(date, data)
     markToMarket(date, data)
 
-    #if date >= np.datetime64('2011-01-01') and date <= np.datetime64('2016-01-01'):
-    current['profit'] *= (1 + (current['LIBOR'] / 365))
-    current['profit'] -= CONST.STORAGE_COST * (CONST.MAX_CAPACITY - current['capacity'])
+    if date >= np.datetime64('2010-01-01') and date <= np.datetime64('2016-01-01'):
+        pltX.append(date)
+        current['profit'] *= (1 + current['LIBOR']/365) # math.exp((math.log(1 + current['LIBOR'], math.e))/365)
+        current['profit'] -= CONST.STORAGE_COST * (CONST.MAX_CAPACITY)
 
-    #Running Strategy
-    hedgeStrat(date, data)
-    gambleStrat(date, data)
+        #Running Strategy
+        hedgeStrat(date, data)
+        gambleStrat(date, data)
 
-    profit.append(current['profit'])
-    netPosition.append(current['profit'] + (CONST.MAX_CAPACITY - current['capacity']) * data['spot'])
+        profit.append(current['profit'])
+        netPosition.append(current['profit'] + (CONST.MAX_CAPACITY - current['capacity']) * data['spot'])
 
+curyear = pltX[0].year
+yearly = []
+temp = 0
+for i in range(1,len(pltX)):
+    d = pltX[i]
+    if d.year != curyear:
+        curyear = d.year
+        yearly.append(temp)
+        temp = 0
+    temp += profit[i] - profit[i-1]
 
-plt.plot(DATA.index.values, profit)
+plt.plot(profit)
 print current
-for p in current['futures']: print p.price
-print profit[-1]
+for p in current['futures']: p.printFutures()
+print profit[-1] / 1000000, "million"
 
 plt.show()
