@@ -3,6 +3,7 @@
 
 import pandas as pd
 import numpy as np
+import math
 from pandas.io.data import DataReader
 import matplotlib.pyplot as plt
 import statsmodels.tsa.api as stats
@@ -42,7 +43,7 @@ DATA = pd.read_csv("data/PriceData.csv", index_col =0, parse_dates=True)
 
 
 current = {
-    'coveredTime' : 100000000,
+    'coveredTime' : 0,
     'capacity' : CONST.MAX_CAPACITY,
     'futures' : [],
     'nextMaturity' : np.datetime64('1995-01-27'),
@@ -50,32 +51,32 @@ current = {
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
 }
 profit = []
+netPosition = []
+
+def tradeFuction(longShort, period, amount): # longShort = 1 or -1, -1 for short future long spot, 1 reverse trade
+    current['futures'].append(Futures(period, data['future' + `period`], amount, longShort==1))
+    current['profit'] = current['profit'] + longShort * amount * data['spot']
+    current['capacity'] = current['capacity'] + longShort * amount
 
 def hedgeStrat(date,data):
     if current['coveredTime'] <= 0:
         for i in range(9, 0, -1):
             if checkContangoBackwardation(date, data, i):
-                current['coveredTime'] = i
-                print "hedgeStratA", current['coveredTime']
+                hedgeCapacity = min(current['capacity'], i * 30 * CONST.STORAGE_COST \
+                    / (data["future" + `i`] / (1 + (current['LIBOR'] / i)) - (data['spot']) - CONST.SHIP_COST))
+                tradeFuction(-1, i, hedgeCapacity)
                 break
     if not checkContangoBackwardation(date, data, 1): #backwardation
         if current['capacity'] < CONST.MAX_CAPACITY: # have some holdings
-            current['futures'].append(Futures(1, data['future1'], (CONST.MAX_CAPACITY - current['capacity']), True))
-            current['profit'] += (CONST.MAX_CAPACITY - current['capacity']) * (data['spot'] - CONST.SHIP_COST)
-            current['capacity'] = CONST.MAX_CAPACITY
-
+            tradeFuction(1, 1, (CONST.MAX_CAPACITY - current['capacity']))
 
 def gambleStrat(date,data):
     if current['capacity'] > 0 and checkContangoBackwardation(date,data, 1):
-        current['futures'].append(Futures(1, data['future1'], current['capacity'], False))
-        current['profit'] -= current['capacity'] * data['spot']
-        current['capacity'] = 0
-
+        tradeFuction(-1, 1, current['capacity'])
 
 # True if Contango, False if Backwardation
 def checkContangoBackwardation(date,data,period):
-    return (data["future" + `period`] / (1 + (current['LIBOR']/period))
-            > (data['spot']) + CONST.SHIP_COST + CONST.STORAGE_COST * 30 * period)
+    return (data["future" + `period`] / (1 + (current['LIBOR']/period)) > (data['spot']) + CONST.SHIP_COST)
 
 def markToMarket(date,data):
     for f in current['futures']:
@@ -131,18 +132,19 @@ for date, data in DATA.iterrows():
     maturityCalculation(date, data)
     markToMarket(date, data)
 
-    if date >= np.datetime64('2010-01-01') and date <= np.datetime64('2016-01-01'):
-        current['profit'] *= (1 + (current['LIBOR'] / 365))
-        current['profit'] -= CONST.STORAGE_COST * (CONST.MAX_CAPACITY - current['capacity'])
+    #if date >= np.datetime64('2011-01-01') and date <= np.datetime64('2016-01-01'):
+    current['profit'] *= (1 + (current['LIBOR'] / 365))
+    current['profit'] -= CONST.STORAGE_COST * (CONST.MAX_CAPACITY - current['capacity'])
 
-        #Running Strategy
-        hedgeStrat(date, data)
-        gambleStrat(date, data)
+    #Running Strategy
+    hedgeStrat(date, data)
+    gambleStrat(date, data)
 
-        profit.append(current['profit'])
+    profit.append(current['profit'])
+    netPosition.append(current['profit'] + (CONST.MAX_CAPACITY - current['capacity']) * data['spot'])
 
 
-plt.plot(profit)
+plt.plot(DATA.index.values, profit)
 print current
 for p in current['futures']: print p.price
 print profit[-1]
