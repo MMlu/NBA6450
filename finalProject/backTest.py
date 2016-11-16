@@ -60,7 +60,7 @@ class _Const(object):
         return 0.14
     @constant
     def SHIP_LOST(self):
-        return 1
+        return 1.0017
     @constant
     def VOLATILITY_THRESHOLD(self):
         return 1
@@ -72,6 +72,7 @@ netPosition = []
 pltX = []
 CAPACITY = []
 DAYRETURN = []
+StraddleCashFlow = []
 DATA = pd.read_csv("data/PriceData.csv", index_col =0, parse_dates=True)
 if CONST.STRADDLE:
     DATA = pd.read_csv("data/gasOptionPrice.csv", index_col=0, parse_dates=True)
@@ -94,6 +95,7 @@ current = {
     'capacity' : CONST.MAX_CAPACITY,
     'futures' : [],
     'nextMaturity' : np.datetime64('1995-01-27'),
+    'nextMaturityStraddle' : np.datetime64('1995-01-27'),
     'profit' : 0,
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
     'numTrades' : 0,
@@ -128,8 +130,9 @@ def shortVolStrat(date, data):
             and current['capacity'] < CONST.MAX_CAPACITY \
             and data['callVol'] < CONST.VOLATILITY_THRESHOLD \
             and data['putVol'] < CONST.VOLATILITY_THRESHOLD:
-        straddleSize = CONST.VOLATILITY_THRESHOLD * (CONST.MAX_CAPACITY - current['capacity']) * 10
+        straddleSize = CONST.VOLATILITY_THRESHOLD * (CONST.MAX_CAPACITY - current['capacity'])
         current['profit'] += straddleSize * (data['call'] + data['put'])
+        StraddleCashFlow.append(straddleSize * (data['call'] + data['put']))
         current['straddles'] = Straddle((data['call'] + data['put']), 1, straddleSize)
 
 
@@ -153,10 +156,12 @@ def markToMarket(date,data):
 
 def maturityCalculation(date,data):
     # Straddle matruity
-    if CONST.STRADDLE and current['straddles'] and date > (current['nextMaturity']) and date != current['nextMaturity']:
+    if CONST.STRADDLE and current['straddles'] is not None and date > (current['nextMaturityStraddle']):
+        current['nextMaturityStraddle'] = updateNextMaturityDate(current['nextMaturityStraddle'], 4)
         if current['straddles'].monthTillMaturity <= 1:
             s = current['straddles']
             current['profit'] -= abs(s.strike - data['spot'])
+            StraddleCashFlow[-1] -= abs(s.strike - data['spot'])
             current['straddles'] = None
         else:
             current['straddles'].monthTillMaturity -= 1
@@ -164,7 +169,7 @@ def maturityCalculation(date,data):
     # Future maturity
     if date >= current['nextMaturity']:
         current['coveredTime'] -= 1
-        updateNextMaturityDate()
+        current['nextMaturity'] = updateNextMaturityDate(current['nextMaturity'], 3)
 
         for i in range(len(current['futures']) - 1, -1, -1):
             if current['futures'][i].monthTillMaturity <= 1:
@@ -179,20 +184,19 @@ def maturityCalculation(date,data):
             else:
                 current['futures'][i].monthTillMaturity -= 1
 
-def updateNextMaturityDate():
+def updateNextMaturityDate(originalDay, offSetDays):
     one_day = np.timedelta64(1, 'D')
-    curMonth = current['nextMaturity'].astype(object).month
-    curYear = current['nextMaturity'].astype(object).year
-    current['nextMaturity'] += one_day
-    while (current['nextMaturity'].astype(object).month % 12) != ((curMonth + 2) % 12) \
-            or not np.is_busday(current['nextMaturity']):
-        current['nextMaturity'] += one_day
+    curMonth = originalDay.astype(object).month
+    originalDay += one_day
+    while (originalDay.astype(object).month % 12) != ((curMonth + 2) % 12) \
+            or not np.is_busday(originalDay):
+        originalDay += one_day
 
-    offSetDays = 3
     while offSetDays > 0:
-        current['nextMaturity'] -= one_day
-        if np.is_busday(current['nextMaturity']):
+        originalDay -= one_day
+        if np.is_busday(originalDay):
             offSetDays -= 1
+    return originalDay
 
 def updateLibor(data):
     try:
@@ -208,7 +212,7 @@ for date, data in DATA.iterrows():
     #current['profit'] *= (1 + current['LIBOR'] / 365)  # math.exp((math.log(1 + current['LIBOR'], math.e))/365)
     #markToMarket(date, data)
 
-    if date >= np.datetime64('2011-01-01') and date <= np.datetime64('2016-01-01'):
+    if date >= np.datetime64('2006-01-01') and date <= np.datetime64('2016-01-01'):
     #if date >= np.datetime64('1990-01-01'):
         current['profit'] -= CONST.STORAGE_COST
         #Running Strategy
@@ -240,8 +244,8 @@ for i in range(1,len(pltX)):
         temp = 0
     temp += netPosition[i] - netPosition[i-1]
 
-plt.bar(range(2007,2016), yearly)
-#plt.plot(profit)
+#plt.bar(range(2007,2016), yearly)
+plt.plot(StraddleCashFlow)
 print current
 for p in current['futures']: p.printFutures()
 print current['profit'] / 1000000, "million"
