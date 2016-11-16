@@ -63,7 +63,7 @@ class _Const(object):
         return 1.0017
     @constant
     def VOLATILITY_THRESHOLD(self):
-        return 1
+        return 0.5
 
 ############### Variables
 CONST = _Const()
@@ -95,7 +95,7 @@ current = {
     'capacity' : CONST.MAX_CAPACITY,
     'futures' : [],
     'nextMaturity' : np.datetime64('1995-01-27'),
-    'nextMaturityStraddle' : np.datetime64('1995-01-27'),
+    'nextMaturityStraddle' : np.datetime64('1995-01-26'),
     'profit' : 0,
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
     'numTrades' : 0,
@@ -133,7 +133,7 @@ def shortVolStrat(date, data):
         straddleSize = CONST.VOLATILITY_THRESHOLD * (CONST.MAX_CAPACITY - current['capacity'])
         current['profit'] += straddleSize * (data['call'] + data['put'])
         StraddleCashFlow.append(straddleSize * (data['call'] + data['put']))
-        current['straddles'] = Straddle((data['call'] + data['put']), 1, straddleSize)
+        current['straddles'] = Straddle(data['spot'], 1, straddleSize)
 
 
 # True if Contango
@@ -156,12 +156,12 @@ def markToMarket(date,data):
 
 def maturityCalculation(date,data):
     # Straddle matruity
-    if CONST.STRADDLE and current['straddles'] is not None and date > (current['nextMaturityStraddle']):
+    if CONST.STRADDLE and current['straddles'] is not None and date >= (current['nextMaturityStraddle']):
         current['nextMaturityStraddle'] = updateNextMaturityDate(current['nextMaturityStraddle'], 4)
         if current['straddles'].monthTillMaturity <= 1:
             s = current['straddles']
-            current['profit'] -= abs(s.strike - data['spot'])
-            StraddleCashFlow[-1] -= abs(s.strike - data['spot'])
+            current['profit'] -= abs(s.strike - data['spot']) * s.size
+            StraddleCashFlow[-1] -= abs(s.strike - data['spot']) * s.size
             current['straddles'] = None
         else:
             current['straddles'].monthTillMaturity -= 1
@@ -212,7 +212,7 @@ for date, data in DATA.iterrows():
     #current['profit'] *= (1 + current['LIBOR'] / 365)  # math.exp((math.log(1 + current['LIBOR'], math.e))/365)
     #markToMarket(date, data)
 
-    if date >= np.datetime64('2006-01-01') and date <= np.datetime64('2016-01-01'):
+    if date >= np.datetime64('2011-01-01') and date <= np.datetime64('2016-01-01'):
     #if date >= np.datetime64('1990-01-01'):
         current['profit'] -= CONST.STORAGE_COST
         #Running Strategy
@@ -245,11 +245,13 @@ for i in range(1,len(pltX)):
     temp += netPosition[i] - netPosition[i-1]
 
 #plt.bar(range(2007,2016), yearly)
-plt.plot(StraddleCashFlow)
+#plt.plot(StraddleCashFlow)
+plt.bar(StraddleCashFlow, range(0, len(StraddleCashFlow)))
 print current
 for p in current['futures']: p.printFutures()
 print current['profit'] / 1000000, "million"
 
+print StraddleCashFlow
 plt.show()
 
 #DATA['return'] = DAYRETURN
