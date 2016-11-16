@@ -1,6 +1,7 @@
 # Bryan Lu
 # For NBA6450 Final Project
 
+import Queue
 import pandas as pd
 import numpy as np
 from math import *
@@ -61,9 +62,6 @@ class _Const(object):
     @constant
     def SHIP_LOST(self):
         return 1.0017
-    @constant
-    def VOLATILITY_THRESHOLD(self):
-        return 0.5
 
 ############### Variables
 CONST = _Const()
@@ -79,28 +77,49 @@ if CONST.STRADDLE:
     callPrice = []
     putPrice = []
 
+    avgSpot30d = []
+    curSpotTotal = 0
+    q = Queue.Queue(10)
     curLibor = float(DATA['LIBOR1'][0])/100
+    dayTillMaturity = 51.
     for date, data in DATA.iterrows():
         try:
             curLibor = float(data['1MLIBOR']) / 100
         except Exception:
             pass
-        callPrice.append(BlackScholes('c',data['spot'], data['spot'], 1.0/12, curLibor, 0, data['callVol']))
-        putPrice.append(BlackScholes('p',data['spot'], data['spot'], 1.0/12, curLibor, 0, data['putVol']))
+
+        if date.day >= 26:
+            dayTillMaturity = 61.
+
+        callPrice.append(BlackScholes('c',data['future2'], data['future2'], dayTillMaturity/365, curLibor, 0, data['callVol']))
+        putPrice.append(BlackScholes('p',data['future2'], data['future2'], dayTillMaturity/365, curLibor, 0, data['putVol']))
+
+        if q.full():
+            curSpotTotal -= q.get()
+        curSpotTotal += data['spot']
+        q.put(data['spot'])
+
+        avgSpot30d.append(curSpotTotal/10.0)
+        dayTillMaturity -= 1
+
     DATA['call'] = callPrice
     DATA['put'] = putPrice
+    DATA['avgSpot30d'] = avgSpot30d
 
 current = {
     'coveredTime' : 0,
     'capacity' : CONST.MAX_CAPACITY,
     'futures' : [],
-    'nextMaturity' : np.datetime64('1995-01-27'),
-    'nextMaturityStraddle' : np.datetime64('1995-01-26'),
+    #'nextMaturity' : np.datetime64('1995-01-27'),
+    #'nextMaturityStraddle' : np.datetime64('1995-01-26'),
+    'nextMaturity' : np.datetime64('2007-08-29'),
+    'nextMaturityStraddle' : np.datetime64('2007-08-28'),
     'profit' : 0,
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
     'numTrades' : 0,
     'countFlip' : 0,
     'straddles' : None,
+    'numStraddles' : 0,
 }
 
 ################ Trading Strategy Functions
@@ -126,14 +145,19 @@ def gambleStrat(date,data):
         tradeFuction(data, -1, 1, current['capacity'])
 
 def shortVolStrat(date, data):
-    if current['straddles'] is None \
-            and current['capacity'] < CONST.MAX_CAPACITY \
-            and data['callVol'] < CONST.VOLATILITY_THRESHOLD \
-            and data['putVol'] < CONST.VOLATILITY_THRESHOLD:
-        straddleSize = CONST.VOLATILITY_THRESHOLD * (CONST.MAX_CAPACITY - current['capacity'])
+    #print data['avgSpot30d'] * exp((data['putVol'] + data['callVol']) / 2), data['spot']
+    if current['straddles'] is None and \
+            data['future1'] < data['avgSpot30d'] * exp((data['putVol'] + data['callVol']) / 10) and \
+            data['future1'] > data['avgSpot30d'] / exp((data['putVol'] + data['callVol']) / 10) :
+            #date + np.timedelta64(10, 'D') > current['nextMaturityStraddle']:
+        straddleSize = CONST.MAX_CAPACITY * exp(-(data['putVol'] + data['callVol']) / 2)
         current['profit'] += straddleSize * (data['call'] + data['put'])
         StraddleCashFlow.append(straddleSize * (data['call'] + data['put']))
-        current['straddles'] = Straddle(data['spot'], 1, straddleSize)
+        mTillM = 2
+        if date.month < current['nextMaturityStraddle'].astype(object).month:
+            mTillM = 1
+        current['straddles'] = Straddle(data['future1'], mTillM, straddleSize)
+        current['numStraddles'] += 1
 
 
 # True if Contango
@@ -156,15 +180,16 @@ def markToMarket(date,data):
 
 def maturityCalculation(date,data):
     # Straddle matruity
-    if CONST.STRADDLE and current['straddles'] is not None and date >= (current['nextMaturityStraddle']):
+    if date >= (current['nextMaturityStraddle']):
         current['nextMaturityStraddle'] = updateNextMaturityDate(current['nextMaturityStraddle'], 4)
-        if current['straddles'].monthTillMaturity <= 1:
-            s = current['straddles']
-            current['profit'] -= abs(s.strike - data['spot']) * s.size
-            StraddleCashFlow[-1] -= abs(s.strike - data['spot']) * s.size
-            current['straddles'] = None
-        else:
-            current['straddles'].monthTillMaturity -= 1
+        if CONST.STRADDLE and current['straddles'] is not None:
+            if current['straddles'].monthTillMaturity <= 1:
+                s = current['straddles']
+                current['profit'] -= abs(s.strike - data['future1']) * s.size
+                StraddleCashFlow[-1] -= abs(s.strike - data['future1']) * s.size
+                current['straddles'] = None
+            else:
+                current['straddles'].monthTillMaturity -= 1
 
     # Future maturity
     if date >= current['nextMaturity']:
@@ -245,14 +270,16 @@ for i in range(1,len(pltX)):
     temp += netPosition[i] - netPosition[i-1]
 
 #plt.bar(range(2007,2016), yearly)
-#plt.plot(StraddleCashFlow)
-plt.bar(StraddleCashFlow, range(0, len(StraddleCashFlow)))
+plt.plot(StraddleCashFlow)
+#plt.bar(StraddleCashFlow, range(0, len(StraddleCashFlow)))
 print current
 for p in current['futures']: p.printFutures()
 print current['profit'] / 1000000, "million"
 
-print StraddleCashFlow
+print sum(StraddleCashFlow) / 1000000, "million"
 plt.show()
+
+#print DATA
 
 #DATA['return'] = DAYRETURN
 #DATA.to_csv("rett", sep=',', encoding='utf-8')
