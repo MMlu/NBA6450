@@ -110,10 +110,11 @@ current = {
     'coveredTime' : 0,
     'capacity' : CONST.MAX_CAPACITY,
     'futures' : [],
-    #'nextMaturity' : np.datetime64('1995-01-27'),
+    'nextMaturity' : np.datetime64('1995-01-27'),
     #'nextMaturityStraddle' : np.datetime64('1995-01-26'),
-    'nextMaturity' : np.datetime64('2007-08-29'),
-    'nextMaturityStraddle' : np.datetime64('2007-08-28'),
+    #'nextMaturity' : np.datetime64('2007-10-29'),
+    'curMaturityStraddle' : np.datetime64('2007-09-25'),
+    'nextMaturityStraddle' : np.datetime64('2007-10-26'),
     'profit' : 0,
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
     'numTrades' : 0,
@@ -180,7 +181,8 @@ def markToMarket(date,data):
 
 def maturityCalculation(date,data):
     # Straddle matruity
-    if date >= (current['nextMaturityStraddle']):
+    if CONST.STRADDLE and date >= (current['curMaturityStraddle']):
+        current['curMaturityStraddle'] = current['nextMaturityStraddle']
         current['nextMaturityStraddle'] = updateNextMaturityDate(current['nextMaturityStraddle'], 4)
         if CONST.STRADDLE and current['straddles'] is not None:
             if current['straddles'].monthTillMaturity <= 1:
@@ -237,7 +239,7 @@ for date, data in DATA.iterrows():
     #current['profit'] *= (1 + current['LIBOR'] / 365)  # math.exp((math.log(1 + current['LIBOR'], math.e))/365)
     #markToMarket(date, data)
 
-    if date >= np.datetime64('2011-01-01') and date <= np.datetime64('2016-01-01'):
+    if date >= np.datetime64('1995-01-01') and date <= np.datetime64('2016-01-01'):
     #if date >= np.datetime64('1990-01-01'):
         current['profit'] -= CONST.STORAGE_COST
         #Running Strategy
@@ -269,7 +271,7 @@ for i in range(1,len(pltX)):
         temp = 0
     temp += netPosition[i] - netPosition[i-1]
 
-#plt.bar(range(2007,2016), yearly)
+#plt.bar(range(1995, 2016), yearly)
 plt.plot(StraddleCashFlow)
 #plt.bar(StraddleCashFlow, range(0, len(StraddleCashFlow)))
 print current

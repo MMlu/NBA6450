@@ -31,38 +31,45 @@ class _Const(object):
         return False
     @constant
     def STORAGE_COST(self):
-        return 0.0025
+        return 0.001
     @constant
     def STORAGE_MIN_COST(self):
-        return 1800
+        return 2640
     @constant
     def MAX_CAPACITY(self):
-        return 3300000
+        return 1000000 #1 BCF = 1 M mmBtu
     @constant
     def SHIP_COST(self):
         return 0.14
     @constant
     def SHIP_LOST(self):
         return 1.0017
+    @constant
+    def OIL_MMBtu_PER_BARREL(self):
+        return 5.8
 
 ############### Variables
 CONST = _Const()
 DATA = pd.read_csv("data/PriceData.csv", index_col =0, parse_dates=True)
 
 current = {
-    'coveredTime' : 0,
     'capacity' : CONST.MAX_CAPACITY,
     'futures' : [],
+    'spreadFutures' : [],
     'nextMaturity' : np.datetime64('1995-01-27'),
+    'nextSpreadMaturity' : np.datetime64('1995-01-20'),
     'profit' : 0,
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
     'numTrades' : 0,
     'countFlip' : 0,
 }
 
+hedgeProfit = []
+profit = []
+
 ################ Trading Strategy Functions
-def tradeFuction(data, longShort, period, amount): # longShort = 1 or -1, -1 for short future long spot, 1 reverse trade
-    current['futures'].append(Futures(period, data['future' + `period`], amount / CONST.SHIP_LOST, longShort==1))
+def tradeFuction(data, longShort, period, amount, profile='futures'): # longShort = 1 or -1, -1 for short future long spot, 1 reverse trade
+    current[profile].append(Futures(period, data['future' + `period`], amount / CONST.SHIP_LOST, longShort==1))
     current['capacity'] = current['capacity'] + longShort * amount
     current['numTrades'] += 1
     if longShort: # short spot
@@ -82,6 +89,11 @@ def gambleStrat(date,data):
     if current['capacity'] > 0 and checkContango(date,data, 1):
         tradeFuction(data, -1, 1, current['capacity'])
 
+def hedgeSpreadStrat(date, data):
+    if len(current['spreadFutures']) == 0:
+        tradeFuction(data, 1, 2, CONST.MAX_CAPACITY / CONST.OIL_MMBtu_PER_BARREL / 2, 'spreadFutures')
+        tradeFuction(data, -1, 1, CONST.MAX_CAPACITY / CONST.OIL_MMBtu_PER_BARREL / 2, 'spreadFutures')
+
 # True if Contango
 def checkContango(date,data,period):
     return (data["future" + `period`] / (1 + (current['LIBOR'] * period / 12))
@@ -94,7 +106,6 @@ def checkBackwardation(date,data,period):
 def maturityCalculation(date,data):
     # Future maturity
     if date >= current['nextMaturity']:
-        current['coveredTime'] -= 1
         current['nextMaturity'] = updateNextMaturityDate(current['nextMaturity'], 3)
 
         for i in range(len(current['futures']) - 1, -1, -1):
@@ -110,19 +121,39 @@ def maturityCalculation(date,data):
             else:
                 current['futures'][i].monthTillMaturity -= 1
 
-def updateNextMaturityDate(originalDay, offSetDays):
+        profit.append(current['profit'])
+
+    if date >= current['nextSpreadMaturity']:
+        current['nextMaturity'] = updateNextMaturityDate(current['nextSpreadMaturity'], 4, 25)
+        hedgeProfit.append(-current['profit'])
+        for f in current['spreadFutures']:
+            if f.longShort:
+                current['profit'] += (data['future1'] - f.price) * f.size
+            else:
+                current['profit'] += (f.price - data['spot']) * f.size
+        hedgeProfit[-1] += current['profit']
+
+        profit.append(current['profit'])
+
+
+def updateNextMaturityDate(originalDay, offset, offsetDate=-1):
     one_day = np.timedelta64(1, 'D')
     curMonth = originalDay.astype(object).month
     originalDay += one_day
     while (originalDay.astype(object).month % 12) != ((curMonth + 2) % 12) \
             or not np.is_busday(originalDay):
         originalDay += one_day
-
-    while offSetDays > 0:
+    while offsetDate != -1 and offsetDate != originalDay.astype(object).day:
         originalDay -= one_day
-        if np.is_busday(originalDay):
+
+    return offSetDays(originalDay, offset)
+
+def offSetDays(date, offSetDays):
+    while offSetDays > 0:
+        date -= np.timedelta64(1, 'D')
+        if np.is_busday(date):
             offSetDays -= 1
-    return originalDay
+    return date
 
 def updateLibor(data):
     try:
@@ -137,12 +168,18 @@ for date, data in DATA.iterrows():
     maturityCalculation(date, data)
     #current['profit'] *= (1 + current['LIBOR'] / 365)  # math.exp((math.log(1 + current['LIBOR'], math.e))/365)
 
-    if date >= np.datetime64('2011-01-01') and date <= np.datetime64('2016-01-01'):
-    #if date >= np.datetime64('1990-01-01'):
+    if date >= np.datetime64('1990-01-01'):
+    #if date >= np.datetime64('2011-01-01') and date <= np.datetime64('2016-01-01'):
         current['profit'] -= CONST.STORAGE_MIN_COST
         current['profit'] -= CONST.STORAGE_COST * (CONST.MAX_CAPACITY - current['capacity'])
         #Running Strategy
         gambleStrat(date, data)
         flipStrat(date, data)
+        hedgeSpreadStrat(date, data)
 
-print current['profit'] / 1000000
+print current
+print current['profit'] / 1000000, "million"
+
+print sum(hedgeProfit) / 1000000, "million", min(hedgeProfit), max(hedgeProfit)
+plt.plot(hedgeProfit)
+plt.show()
