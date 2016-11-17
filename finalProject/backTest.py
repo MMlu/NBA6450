@@ -71,6 +71,7 @@ pltX = []
 CAPACITY = []
 DAYRETURN = []
 StraddleCashFlow = []
+StraddleCashFlowX = []
 DATA = pd.read_csv("data/PriceData.csv", index_col =0, parse_dates=True)
 if CONST.STRADDLE:
     DATA = pd.read_csv("data/gasOptionPrice.csv", index_col=0, parse_dates=True)
@@ -189,6 +190,7 @@ def maturityCalculation(date,data):
                 s = current['straddles']
                 current['profit'] -= abs(s.strike - data['future1']) * s.size
                 StraddleCashFlow[-1] -= abs(s.strike - data['future1']) * s.size
+                StraddleCashFlowX.append(date)
                 current['straddles'] = None
             else:
                 current['straddles'].monthTillMaturity -= 1

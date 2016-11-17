@@ -31,22 +31,19 @@ class _Const(object):
         return False
     @constant
     def STORAGE_COST(self):
-        return 0.0026
+        return 0
     @constant
     def STORAGE_MIN_COST(self):
-        return 600 + 515
+        return 684.93
     @constant
     def MAX_CAPACITY(self):
-        return 800000 #1 BCF = 1 M mmBtu
+        return 1000000 #1 BCF = 1 M mmBtu
     @constant
     def SHIP_COST(self):
-        return 0.1874
+        return 0.005
     @constant
     def SHIP_LOST(self):
-        return 1.0217
-    @constant
-    def OIL_MMBtu_PER_BARREL(self):
-        return 5.8
+        return 1
 
 ############### Variables
 CONST = _Const()
@@ -57,62 +54,56 @@ current = {
     'futures' : [],
     'spreadFutures' : [],
     'nextMaturity' : np.datetime64('1995-01-27'),
-    'nextSpreadMaturity' : np.datetime64('1995-01-20'),
     'profit' : 0,
     'LIBOR' : float(DATA['LIBOR1'][0])/100,
     'numTrades' : 0,
     'countFlip' : 0,
 }
+#print DATA
 
-hedgeProfit = []
 profit = []
 
 ################ Trading Strategy Functions
-def tradeFuction(data, longShort, period, amount, profile='futures'): # longShort = 1 or -1, -1 for short future long spot, 1 reverse trade
-    current[profile].append(Futures(period, data['future' + `period`], amount / CONST.SHIP_LOST, longShort==1))
+def tradeFuction(data, longShort, amount, profile='futures'): # longShort = 1 or -1, -1 for short future long spot, 1 reverse trade
+    current[profile].append(Futures(1, data['Ofuture2'], amount / CONST.SHIP_LOST, longShort==1))
     current['capacity'] = current['capacity'] + longShort * amount
     current['numTrades'] += 1
     if longShort: # short spot
-        current['profit'] += longShort * amount * data['spot'] / CONST.SHIP_LOST
+        current['profit'] += longShort * amount * data['Ofuture1'] / CONST.SHIP_LOST
         current['profit'] -= CONST.SHIP_COST * amount
     else: # long spot
-        current['profit'] += longShort * amount * data['spot'] * CONST.SHIP_LOST
+        current['profit'] += longShort * amount * data['Ofuture1'] * CONST.SHIP_LOST
         current['profit'] -= CONST.SHIP_COST * amount * CONST.SHIP_LOST
 
 def flipStrat(date,data):
-    if checkBackwardation(date, data, 1):
+    if checkBackwardation(date, data):
         if current['capacity'] < CONST.MAX_CAPACITY: # have some holdings
             current['countFlip'] += 1
-            tradeFuction(data, 1, 1, (CONST.MAX_CAPACITY - current['capacity']))
+            tradeFuction(data, 1, (CONST.MAX_CAPACITY - current['capacity']))
 
 def gambleStrat(date,data):
-    if current['capacity'] > 0 and checkContango(date,data, 1):
-        tradeFuction(data, -1, 1, current['capacity'])
-
-def hedgeSpreadStrat(date, data):
-    if len(current['spreadFutures']) == 0:
-        tradeFuction(data, 1, 2, CONST.MAX_CAPACITY, 'spreadFutures')
-        tradeFuction(data, -1, 1, CONST.MAX_CAPACITY, 'spreadFutures')
+    if current['capacity'] > 0 and checkContango(date,data):
+        tradeFuction(data, -1, current['capacity'])
 
 # True if Contango
-def checkContango(date,data,period):
-    return (data["future" + `period`] / (1 + (current['LIBOR'] * period / 12))
-            > (data['spot'] * CONST.SHIP_LOST**2) + CONST.SHIP_COST * 2)
+def checkContango(date,data):
+    return (data["Ofuture2"] / (1 + (current['LIBOR'] * 1. / 12))
+            > (data['Ofuture1'] * CONST.SHIP_LOST**2) + CONST.SHIP_COST * 2)
 
-def checkBackwardation(date,data,period):
-    return (data["future" + `period`] / (1 + (current['LIBOR'] * period / 12))
-            < (data['spot'] * CONST.SHIP_LOST**2) - CONST.SHIP_COST * 2)
+def checkBackwardation(date,data):
+    return (data["Ofuture2"] / (1 + (current['LIBOR'] * 1. / 12))
+            < (data['Ofuture1'] * CONST.SHIP_LOST**2) - CONST.SHIP_COST * 2)
 
 def maturityCalculation(date,data):
     # Future maturity
     if date >= current['nextMaturity']:
-        current['nextMaturity'] = updateNextMaturityDate(current['nextMaturity'], 3)
+        current['nextMaturity'] = updateNextMaturityDate(current['nextMaturity'], 4, 25)
 
         for i in range(len(current['futures']) - 1, -1, -1):
             if current['futures'][i].monthTillMaturity <= 1:
                 f = current['futures'].pop(i)
                 if f.longShort:
-                    current['profit'] -= (f.price + CONST.SHIP_COST * CONST.SHIP_LOST + data['spot']
+                    current['profit'] -= (f.price + CONST.SHIP_COST * CONST.SHIP_LOST + data['Ofuture1']
                                           * (CONST.SHIP_LOST - 1)) * f.size
                     current['capacity'] -= f.size * CONST.SHIP_LOST
                 else:
@@ -122,19 +113,6 @@ def maturityCalculation(date,data):
                 current['futures'][i].monthTillMaturity -= 1
 
         profit.append(current['profit'])
-
-    if date >= current['nextSpreadMaturity']:
-        current['nextSpreadMaturity'] = updateNextMaturityDate(current['nextSpreadMaturity'], 4, 25)
-        hedgeProfit.append(-current['profit'])
-        for f in current['spreadFutures']:
-            if f.longShort:
-                current['profit'] += (data['future1'] - f.price) * f.size
-            else:
-                current['profit'] += (f.price - data['spot']) * f.size
-        hedgeProfit[-1] += current['profit']
-
-        profit.append(current['profit'])
-
 
 def updateNextMaturityDate(originalDay, offset, offsetDate=-1):
     one_day = np.timedelta64(1, 'D')
@@ -175,11 +153,9 @@ for date, data in DATA.iterrows():
         #Running Strategy
         gambleStrat(date, data)
         flipStrat(date, data)
-        hedgeSpreadStrat(date, data)
 
 print current
 print current['profit'] / 1000000, "million"
 
-print sum(hedgeProfit) / 1000000, "million", min(hedgeProfit), max(hedgeProfit)
 plt.plot(profit)
 plt.show()
